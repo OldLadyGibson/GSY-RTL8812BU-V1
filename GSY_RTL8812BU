@@ -1,0 +1,65 @@
+#!/bin/bash
+echo "Gibson Scrapyard Install and Test Script for RTL8812BU Kali Linux."
+echo "Using the test options will put the device in monitor mode for testing"
+echo "This script will install software for testing"
+PS3='Select an option: '
+option=("Install" "Display" "Test wlan0" "Test wlan1" "Set into Monitormode" "Quit")
+select fav in "${option[@]}"; do
+    case $fav in
+        "Install")
+            echo "Installing RTL8812BU Driver and associated software"
+	    sudo apt update
+	    sudo apt-get install -y aircrack-ng
+        sudo apt install bc -y
+        sudo apt install dkms
+        sudo git clone https://github.com/cilynx/rtl88x2bu.git
+        cd rtl88x2bu
+        #Edits driver manifest to enable monitor mode
+        sudo sed -i 's/CONFIG_WIFI_MONITOR = n/CONFIG_WIFI_MONITOR = y/g' Makefile
+        VER=$(sed -n 's/\PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
+        sudo rsync -rvhP ./ /usr/src/rtl88x2bu-${VER}
+        sudo dkms add -m rtl88x2bu -v ${VER}
+        sudo dkms build -m rtl88x2bu -v ${VER}
+        sudo dkms install -m rtl88x2bu -v ${VER}
+        sudo modprobe 88x2bu
+            ;;
+        "Display")
+            echo "Showing Wireless Cards"
+	    ip a
+	    sleep 5
+            ;;
+        "Test wlan0")
+            echo "Putting wlan0 into Monitor mode and testing"
+	    sudo airmon-ng check kill #kills services that could interfere with adaptor
+        sudo ifconfig wlan0 down                
+        sudo iwconfig wlan0 mode monitor        
+        sudo ifconfig wlan0 up        
+        echo "We will now test injection and monitor mode," 
+        echo "press CNTRL+C to exit each test"
+        sleep 5
+        sudo airodump-ng wlan0
+        sudo aireplay-ng -9 wlan0
+        	;;
+	    "Test wlan1")
+	        echo "Putting wlan1 into Montor mode and testing"    
+	    sudo airmon-ng check kill #kills services that could interfere with adaptor
+        sudo ifconfig wlan1 down                
+        sudo iwconfig wlan1 mode monitor        
+        sudo ifconfig wlan1 up        
+        echo "We will now test injection and monitor mode," 
+        echo "press CNTRL+C to exit each test"
+        sleep 5
+        sudo airodump-ng wlan1
+        sudo aireplay-ng -9 wlan1
+            ;;
+        "Set into Monitormode")
+            echo "Setting wlan0 into monitor mode"
+        sudo airmon-ng start wlan0
+            ;;
+	"Quit")
+	    echo "User requested exit, please restart network manager"
+	    exit
+	    ;;
+        *) echo "invalid option $REPLY";;
+    esac
+done
